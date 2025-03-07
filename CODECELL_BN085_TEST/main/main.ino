@@ -12,49 +12,63 @@ bool sendVariable[6] = {false, false, false, false, false, false}; // Estados de
 uint32_t IMU_config = 0b100001011010010000;
 
 float RIJK[4];
+float aceletation_matrix[3];
+float magnetometer_matrix[3];
+int acc_rot=0;
+int acc_acc=0;
 
 BNO085 IMU;
 void IMU_Init(uint32_t config, uint16_t timeBetweenReports = 10, uint32_t activitiesToEnable = 0xFFFFFFFF);
 
-void setup() {
+void setup() 
+{
     Serial.begin(115200);
 	  while(!Serial);
-    IMU_Init(IMU_config,10,0xFFFFFFFF); 
-   
-        //IMU.enableGyro(10000);// 200 Hz
-    //IMU.enableRotationVector(10000);
+    IMU_Init(IMU_config,10,0xFFFFFFFF);  
     delay(5000);
 }
 
-void loop() {
-    if (IMU.getSensorEvent()== true) 
-    {   // Actualiza los datos del sensor
-        // Leer aceleración
-        float ax = IMU.getAccelX();
-        float ay = IMU.getAccelY();
-        float az = IMU.getAccelZ();
+void loop() 
+{
+    
+    read_rotation_vector();
+    read_acceleration();
 
-        if(IMU.getSensorEventID()== SENSOR_REPORTID_ROTATION_VECTOR)
-        {
-          // Leer giroscopio
-          RIJK[0]= IMU.getRot_R();
-          RIJK[1]= IMU.getRot_I();
-          RIJK[2] = IMU.getRot_J();
-          RIJK[3]= IMU.getRot_K();
-          int acc_rot=IMU.getRot_Accuracy();
-          int acc_acc=IMU.getAccelAccuracy();
-        
-          if(acc_rot>=2)
-          t
-            Rotation_deg(Roll,Pitch,Yaw);
-            Serial.printf("Roll: %.2f°, Pitch: %.2f°, Yaw: %.2f°\n", Roll, Pitch, Yaw);
-          }
-        }
+    if(acc_rot>=2 && acc_acc>=2)
+    {
+      Rotation_deg(Roll,Pitch,Yaw);
+      Serial.printf("X: %.2f m/s^2, Y: %.2f m/s^2, Z: %.2f m/s^2", aceletation_matrix[0], aceletation_matrix[1], aceletation_matrix[2]);
+      Serial.printf("Roll: %.2f°, Pitch: %.2f°, Yaw: %.2f°\n", Roll, Pitch, Yaw);
+    }     
 
-        
-
-   }
+   
    delay(10);
+}
+
+void read_acceleration()
+{
+
+  if ( (IMU.getSensorEvent()== true) && IMU.getSensorEventID() == SENSOR_REPORTID_ACCELEROMETER) {
+    aceletation_matrix[0]=IMU.getAccelX();
+    aceletation_matrix[1]=IMU.getAccelY();
+    aceletation_matrix[2]=IMU.getAccelZ();
+    acc_acc=IMU.getAccelAccuracy();
+  }
+}
+
+void read_rotation_vector()
+{
+  
+  if((IMU.getSensorEvent()== true) && (IMU.getSensorEventID()== SENSOR_REPORTID_ROTATION_VECTOR) )
+  {
+    // Leer giroscopio
+    RIJK[0]= IMU.getRot_R();
+    RIJK[1]= IMU.getRot_I();
+    RIJK[2] =IMU.getRot_J();
+    RIJK[3]= IMU.getRot_K();
+
+    acc_rot=IMU.getRot_Accuracy();
+  }
 }
 
 void IMU_Init(uint32_t config, uint16_t timeBetweenReports, uint32_t activitiesToEnable )
@@ -95,7 +109,7 @@ bool Magnitude_not_relevant(float &x, float &y, float &z)
 
 void Rotation_deg(float &roll, float &pitch, float &yaw)
 {
-      roll = atan2(2.0 * (RIJK[0] * RIJK[1] + RIJK[2] * RIJK[3]), 1.0 - 2.0 * (RIJK[1] * RIJK[1] + RIJK[2] * RIJK[2]));
+    roll = atan2(2.0 * (RIJK[0] * RIJK[1] + RIJK[2] * RIJK[3]), 1.0 - 2.0 * (RIJK[1] * RIJK[1] + RIJK[2] * RIJK[2]));
     roll = roll * RAD_TO_DEG;
 
     pitch = atan2(2.0 * (RIJK[0] * RIJK[2] - RIJK[3] * RIJK[1]), 1.0 - 2.0 * (RIJK[2] * RIJK[2] + RIJK[1] * RIJK[1]));
@@ -111,21 +125,21 @@ void Show_IMU_data_UART()
   // Leer datos del monitor serial
     while (Serial.available()) 
     {
-        char c = Serial.read();
-        if (c == '\n') 
-        {  // Si se presiona Enter
-            int command = receivedData.toInt(); // Convertir a número
-            if (command >= 1 && command <= 6) 
-            {
-                sendVariable[command - 1] = !sendVariable[command - 1]; // Cambiar estado
-                Serial.print("Variable ");
-                Serial.print(command);
-                Serial.println(sendVariable[command - 1] ? " ACTIVADA" : " DESACTIVADA");
-            }
-            receivedData = ""; // Resetear buffer
-        } else {receivedData += c; }
+      char c = Serial.read();
+      if (c == '\n') 
+      {
+        // Si se presiona Enter
+        int command = receivedData.toInt(); // Convertir a número
+        if (command >= 1 && command <= 6) 
+        {
+          sendVariable[command - 1] = !sendVariable[command - 1]; // Cambiar estado
+          Serial.print("Variable ");
+          Serial.print(command);
+          Serial.println(sendVariable[command - 1] ? " ACTIVADA" : " DESACTIVADA");
+        }
+        receivedData = ""; // Resetear buffer
+      } else {receivedData += c; }
     }
-
     // Enviar solo las variables activadas
     if (sendVariable[0]) Serial.print(Data_IMU[0]);
     if (sendVariable[1]) Serial.print(","), Serial.print(Data_IMU[1]);
@@ -134,8 +148,7 @@ void Show_IMU_data_UART()
     if (sendVariable[4]) Serial.print(","), Serial.print(Data_IMU[4]);
     if (sendVariable[5]) Serial.print(","), Serial.println(Data_IMU[5]); // Última variable con println
     if (!sendVariable[5])Serial.println();
-    return;
-                                                                  //
+    return;                                                                  //
 }
 
 
